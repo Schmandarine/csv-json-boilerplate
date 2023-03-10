@@ -11,19 +11,27 @@
  * Modify to suit your needs.
  */
 
-const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-const csv = require('csv-parser');
-const fs = require('fs');
+const createCsvWriter = require("csv-writer").createObjectCsvWriter;
+const csv = require("csv-parser");
+const fs = require("fs");
 
 const inputCsvJson = [];
 let modifiedCsvJson = [];
+
+const blog_categories = {
+  General: "general",
+  "How to": "how-to",
+  "New Feature": "new-feature",
+  Uncategorized: "uncategorized",
+  Userstory: "userstory",
+};
 
 /**
  * Global config.
  */
 const config = {
-  inputFile: './input/input-file.csv',
-  outputFile: './output/output-file-to-be-created.csv',
+  inputFile: "./input/production-posts-en.csv",
+  outputFile: "./output/output-file-to-be-created.csv",
 };
 
 /**
@@ -33,33 +41,34 @@ const config = {
  * title: title of column in output, where input data will be mapped to.
  *
  * Each header ID needs to match the CSV header title text and can be reordered.
+ *
  */
 const csvWriter = createCsvWriter({
   path: config.outputFile,
   header: [
     {
-      id: 'Year',
-      title: 'Year'
+      id: "id",
+      title: "id",
     },
     {
-      id: 'Artist',
-      title: 'Artist'
+      id: "Title",
+      title: "Title",
     },
     {
-      id: 'Album',
-      title: 'Album Name'
+      id: "Content",
+      title: "Content",
     },
     {
-      id: 'Label',
-      title: 'Label'
+      id: "Kategorien",
+      title: "Kategorien",
     },
     {
-      id: 'Certified Units',
-      title: 'Certified Units'
+      id: "Image Featured",
+      title: "Image Featured",
     },
     {
-      id: 'Certification',
-      title: 'Certification'
+      id: "Date",
+      title: "Date",
     },
   ],
   alwaysQuote: true,
@@ -69,16 +78,16 @@ const csvWriter = createCsvWriter({
  * Initialise script.
  */
 function init() {
-  console.log('Initiating...');
+  console.log("Initiating...");
   console.log(`Preparing to parse CSV file... ${config.inputFile}`);
 
   fs.createReadStream(config.inputFile)
-    .pipe(csv())
-    .on('data', (data) => inputCsvJson.push(data))
-    .on('end', () => {
-      modifiedCsvJson = inputCsvJson
+    .pipe(csv({ separator: "," }))
+    .on("data", (data) => inputCsvJson.push(data))
+    .on("end", () => {
+      modifiedCsvJson = inputCsvJson;
 
-      console.log('...Done');
+      console.log("...Done");
 
       initFunctions();
     });
@@ -88,10 +97,12 @@ function init() {
  * Execute functions once data is available.
  */
 function initFunctions() {
-  console.log('Initiating script functionality...');
+  console.log("Initiating script functionality...");
 
-  modifyCertifiedUnits();
-  filterAlbumYears();
+  //modifiedCsvJson.splice(2);
+  //filterPostswithImage();
+  deleteGutenbergComments();
+  changeCategories();
 
   /**
    * Once everything is finished, write to file.
@@ -99,37 +110,38 @@ function initFunctions() {
   writeDataToFile();
 }
 
-/**
- * Function that will remove items that don't match our desired years.
- */
-function filterAlbumYears() {
-  console.log('Removing items released in 2015');
-
-  modifiedCsvJson = modifiedCsvJson.filter((item) => {
-    return item['Year'] === '2015' ? null : item
-  });
-
-  console.log('...Done');
+function filterPostswithImage() {
+  modifiedCsvJson = modifiedCsvJson.filter((row) =>
+    row.Content.includes("<img")
+  );
 }
 
-/**
- * Removes the parenthesis from the 'Certified Units' field.
- */
-function modifyCertifiedUnits() {
-  console.log('Removing parenthesis from Units Sold...')
-
+function deleteGutenbergComments() {
   modifiedCsvJson = modifiedCsvJson.map((item) => {
-    const returnedItem = item
-    const itemKey = 'Certified Units'
+    const returnedItem = item;
+    const itemKey = "Content";
 
-    returnedItem[itemKey] = item[itemKey].replace(/[{()}]/g, '');
+    returnedItem[itemKey] = item[itemKey].replace(/<!--[\s\n]+[^>]+>/g, "");
 
-    return returnedItem
-  })
-
-  console.log('...Done');
+    return returnedItem;
+  });
 }
 
+function changeCategories() {
+  modifiedCsvJson = modifiedCsvJson.map((item) => {
+    const returnedItem = item;
+    const itemKey = "Kategorien";
+
+    returnedItem[itemKey] = item[itemKey]
+      .split("|")
+      .map((cat) => {
+        return blog_categories[cat];
+      })
+      .join(";");
+
+    return returnedItem;
+  });
+}
 
 /**
  * Write all modified data to its own CSV file.
@@ -137,12 +149,11 @@ function modifyCertifiedUnits() {
 function writeDataToFile() {
   console.log(`Writing data to a file...`);
 
-  csvWriter.writeRecords(modifiedCsvJson)
-    .then(() => {
-      console.log('The CSV file was written successfully!')
+  csvWriter.writeRecords(modifiedCsvJson).then(() => {
+    console.log("The CSV file was written successfully!");
 
-      console.log('...Finished!');
-    });
+    console.log("...Finished!");
+  });
 }
 
 init();
